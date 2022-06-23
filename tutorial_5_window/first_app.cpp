@@ -1,6 +1,6 @@
 #include "first_app.hpp"
 #include <stdexcept>
-
+#include <array>
 
 namespace lve {
 
@@ -16,7 +16,13 @@ FirstApp::~FirstApp() {
 void FirstApp::run() {
   while (!lve_window_.ShouldClose()) {
     glfwPollEvents();
+    drawFrame();
   }
+  // cpu block all operation until gpu operation complete.
+  // To prevent error when closing window which might be at same time
+  // as commmand buffer execution causing destructor to get called
+  // while resources are used.
+  vkDeviceWaitIdle(lve_device_.device());
 }
 
 void FirstApp::CreatePipelineLayout() {
@@ -44,7 +50,87 @@ void FirstApp::CreatePipeline() {
                               pipeline_config);
 }
 
-void FirstApp::CreateCommandBuffers(){};
-void FirstApp::drawFrame(){};
+void FirstApp::CreateCommandBuffers(){
+  // Advantage of command buffer is we can record once, and reuse for
+  // multiple frame buffers. However since render pass which we need
+  // requires target frame buffer id, we need to re-record the command buffer.
+  // To simplify things, for now, we set 1 command buffer to be in charge of
+  // 1 frame buffer.
+  command_buffers_.resize(lve_swap_chain_.imageCount());
+  VkCommandBufferAllocateInfo alloc_info{};
+  alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  // Primary = can be sent to queue for execution. but cannot be called by other command buffers.
+  // Secondary = cannot be sent to queue for execution. but can be called by other command buffers.
+  alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  // Command pools = opaque objects that command buffer memory is allocated from.
+  // Application need to create and destroy command buffer frequently,
+  // so it takes it from command pool to reduce cost of resource creation.
+  // (Somewhat of a caching allocator or special memory regions reserved for cmd buffers)
+  alloc_info.commandPool = lve_device_.getCommandPool();
+  alloc_info.commandBufferCount = static_cast<uint32_t>(command_buffers_.size());
+  if(vkAllocateCommandBuffers(lve_device_.device(), &alloc_info, command_buffers_.data()) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create command buffer.");
+  }
+  // Record/draw command for each buffer.
+  for (int i = 0; i < command_buffers_.size(); i++) {
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType= VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // Begin recording.
+    if(vkBeginCommandBuffer(command_buffers_[i], &begin_info) != VK_SUCCESS) {
+      throw std::runtime_error("Failed to begin recording command buffer");
+    }
+    // Command to begin a render pass.
+    VkRenderPassBeginInfo render_pass_info{};
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_info.renderPass = lve_swap_chain_.getRenderPass();
+    render_pass_info.framebuffer = lve_swap_chain_.getFrameBuffer(i);
+
+    render_pass_info.renderArea.offset = {0, 0};
+    render_pass_info.renderArea.extent = lve_swap_chain_.getSwapChainExtent();
+
+    // Set clear value to initialize value of frame buffer's attachments/data.
+    // Using 2, because one for color attachments and another for depth.
+    std::array<VkClearValue, 2> clear_values{};
+    // Set clear_value[0] as our color attachment to the current frame buffer. Where defined by RGBA.
+    clear_values[0].color = {0.1f, 0.1f, 0.1f, 0.1f};
+    // Set clear_value[1] as our depth attachment to the current frame buffer. where farthest value is 1 and closest is 0.
+    clear_values[1].depthStencil = {1.0f, 0};
+    render_pass_info.clearValueCount = clear_values.size();
+    render_pass_info.pClearValues = clear_values.data();
+    //VK_SUBPASS_CONTENT_INLINE = The commands following this line will be directly embedded to primary command buffer and
+    // no secondary command buffer will be used.
+    //Alternatively, VK_SUBPASS_SECONDARY_COMMAND_BUFFERS = Then the following render pass commands will be using secondary command
+    // buffers. and no primary command buffers will be used.
+    // This implies no mixing allowed in render pass to use both primary and secondary command buffers.
+    vkCmdBeginRenderPass(command_buffers_[i], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+    lve_pipeline_->bind(command_buffers_[i]);
+    // Draw 3 vertices and 1 instance.
+    // 0, 0 since no offsets to data. Technically not even inputting any data, since we hardcoding it for now.
+    // Instance is used to draw copies of same vertex data. Useful for rendering particle systems.
+    vkCmdDraw(command_buffers_[i], /*vertex count*/3, /*instance count*/ 1, /*first vertex*/0, /*first instance*/0);
+    vkCmdEndRenderPass(command_buffers_[i]);
+    if( vkEndCommandBuffer(command_buffers_[i]) != VK_SUCCESS) {
+      throw std::runtime_error("Failed to end recording command buffer");
+    }
+  }
+};
+void FirstApp::drawFrame(){
+  uint32_t image_index;
+  // Fetch index to the frame we should render next.
+  // Automatically handle cpu-gpu synchronisation for double/triple buffering.
+  // result show if it is successful.
+  auto result = lve_swap_chain_.acquireNextImage(&image_index);
+  if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    // Might also occur when windows is resized, we will fix this later.
+    throw std::runtime_error("Failed to acquire next swapchain image");
+  }
+  // Submit cmd_buffer to device graphic queue while handling cpu-gpu sync.
+  // cmd buffer will then be executed, then swap chain will present associated
+  // color attachment image view to the display at the appropriate time based on present_mode(mailbox/fifo).
+  result = lve_swap_chain_.submitCommandBuffers(&command_buffers_[image_index], &image_index);
+  if(result != VK_SUCCESS) {
+    throw std::runtime_error("Failed to present swap chain image.");
+  }
+};
 
 }  // namespace lve

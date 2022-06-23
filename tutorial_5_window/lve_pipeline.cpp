@@ -121,6 +121,16 @@ namespace lve {
         vkDestroyPipeline(lve_device_.device(), graphics_pipeline_, nullptr);
     }
 
+    // Bind a pipeline object to a command buffer
+    void LvePipeline::bind(VkCommandBuffer command_buffer) {
+        // VK_PIPELINE_BIND_POINT_GRAPHICS = indicate that it is graphic pipeline
+        // VK_PIPELINE_BIND_POINT_COMPUTE = indicate that it is compute pipeline
+        // VK_PIPELINE_BIND_POINT_RAY_TRACER = indicate that it is ray tracing pipeline
+        // No check needed since, check already done during initialization for command_buffer and
+        // graphic pipeline.
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+    }
+
 
     void LvePipeline::CreateShaderModule(const std::vector<char>& code, VkShaderModule* output_module) {
         VkShaderModuleCreateInfo create_info{};

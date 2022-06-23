@@ -35,6 +35,9 @@ class LvePipeline {
     // Create default pipeline configuration.
     static PipelineConfigInfo defaultPipelineConfigInfo(uint32_t width, uint32_t height);
 
+    // Binds graphic pipeline into the command buffer.
+    void bind(VkCommandBuffer command_buffer);
+
     private:
     static std::vector<char> ReadFile(const std::string& file_name);
     void CreateGraphicPipeline(const std::string& vert_file_path,

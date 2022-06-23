@@ -22,6 +22,7 @@ class FirstApp {
     void CreatePipeline();
     void CreateCommandBuffers();
     void drawFrame();
+    void bind(VkCommandBuffer command_buffer);
 
     LveWindow lve_window_{kWidth_, kHeight_, "Hi Vulkan!"};
     LveDevice lve_device_{lve_window_};
@@ -29,7 +30,7 @@ class FirstApp {
     // PipelineConfigInfo pipelineConfig{};
     std::unique_ptr<LvePipeline> lve_pipeline_;
     VkPipelineLayout pipeline_layout_;
-    std::vector<VkCommandBuffer> cmd_buffers_;
+    std::vector<VkCommandBuffer> command_buffers_;
 };
 
 }  // namespace lve
