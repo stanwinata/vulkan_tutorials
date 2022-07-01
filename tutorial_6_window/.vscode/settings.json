@@ -82,5 +82,6 @@
         "memory_resource": "cpp",
         "stop_token": "cpp",
         "filesystem": "cpp"
-    }
+    },
+    "remote.SSH.connectTimeout": 60
 }

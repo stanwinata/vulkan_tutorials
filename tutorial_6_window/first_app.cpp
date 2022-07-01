@@ -4,7 +4,9 @@
 
 namespace lve {
 
-FirstApp::FirstApp() {
+FirstApp::FirstApp() {};
+
+void FirstApp::init() {
   loadModels();
   CreatePipelineLayout();
   CreatePipeline();
@@ -29,6 +31,7 @@ void FirstApp::run() {
 void FirstApp::loadModels() {
   // Initialize a vector of Vertex, but only give input to vec2/position.
   // to the position.
+  std::cout<<"base class!\n";
   std::vector<LveModel::Vertex> vertices {
     {{0.0, -0.5}},
     {{0.5, 0.5}},
