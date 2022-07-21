@@ -1,0 +1,38 @@
+#pragma once
+
+#define VK_ENABLE_BETA_EXTENSIONS
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#include <string>
+
+namespace lve {
+
+class LveWindow {
+  public:
+    LveWindow(int w, int h, std::string window_name);
+    bool ShouldClose() {return glfwWindowShouldClose(window_);}
+    void createWindowSurface(VkInstance instance, VkSurfaceKHR *surface);
+    ~LveWindow();
+
+    // Delete copy constructor and copy operator. because it is using pointer to GLFWwindow.
+    // [Theory]: Resource acquistion/creation only during initialization. and clean up performed during destructor.
+    // [Intuiton]: This is to prevent copies of LveWindow, which will cause multipe instances of
+    // LveWindow pointing to the same GLFWwindow pointer. Then when one of the LveWindow is deleted,
+    // the others would have a dangling pointer to a non-existent GLFWwindow.
+    LveWindow(const LveWindow &) = delete;
+    LveWindow &operator=(const LveWindow &) = delete;
+    VkExtent2D getExtend() { return {static_cast<uint32_t>(width_), static_cast<uint32_t>(height_)}; }
+    bool wasWindowResized() { return frame_buffer_resized_; }
+    void resetWindowResizeFlag() { frame_buffer_resized_ = true; }
+
+  private:
+    static void frameBufferResizedCallback(GLFWwindow *window, int width, int height);
+    void InitWindow();
+    GLFWwindow *window_;
+    int width_;
+    int height_;
+    bool frame_buffer_resized_ = false;
+    std::string window_name_;
+
+};
+} // namespace lve
